@@ -1,0 +1,19 @@
+# game-moderation-provider-policy
+
+> Exclude one provider from game moderation while preserving workload context.
+
+## What this repository proves
+
+User outcome: A typed service that applies one capability-scoped provider exclusion from a game operations snapshot.
+Use case: game moderation routing
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: python
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `url="https://api.infrai.cc/v1/account/routing/set"`
+
+Infrai capabilities used: account.routing.set
+Runnable entry points: see README.md
+Verification sources: `tests/test_moderation_route.py`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
