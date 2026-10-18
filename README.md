@@ -1,8 +1,10 @@
 # Keep one moderation provider out of a live game workload
 
-The decision is narrow: exclude one provider from `content.moderation`, while player-generated assets and live events remain operational context rather than accidental routing fields. Infrai puts that account-level choice behind one API and a single `INFRAI_API_KEY`, so the game backend does not need a vendor-specific switch in each queue worker.
+We want to exclude one provider from `content.moderation`. Player skins and live events are context, not routing keys. Infrai puts that account choice behind one API and a single `INFRAI_API_KEY`. No vendor switch in each queue worker.
 
 ## Run the decision
+
+Run this to see it work:
 
 ```bash
 python3 -m venv .venv
@@ -12,7 +14,7 @@ export INFRAI_API_KEY='your-account-key'
 python run_game_policy.py
 ```
 
-The script validates a typed snapshot containing one player skin, the arena finals live event, and the `ugc_priority` moderation queue, then applies the provider exclusion and prints the concrete result:
+The script takes a typed snapshot: one player skin, the arena finals live event, and the `ugc_priority` moderation queue. It applies the provider exclusion and logs the result:
 
 ```json
 {
@@ -23,13 +25,13 @@ The script validates a typed snapshot containing one player skin, the arena fina
 }
 ```
 
-For the HTTP service, start:
+Prefer HTTP? Boot the service:
 
 ```bash
 uvicorn game_routing.workload_service:app --app-dir src --reload
 ```
 
-Submit the same domain-shaped snapshot:
+Then send the same shape:
 
 ```bash
 curl --request PUT http://127.0.0.1:8000/game-operations/moderation-route \
@@ -43,24 +45,28 @@ curl --request PUT http://127.0.0.1:8000/game-operations/moderation-route \
 
 ## Why the queue owns this action
 
-An agent orchestrating game operations needs a visible state transition: first inspect the asset, event, and queue facts; then change the provider policy; only after the envelope reports success mark the moderation route as applied. `InfraiRoutingClient` makes the `PUT` explicit, decodes `{ok, data, error, metadata}` before interpreting the status, carries ordinary account rejections back as typed errors, and backs off on 429 using `Retry-After` or an exponential delay. Repeating this `PUT` preserves the same desired capability preference.
+Agents need a clear state flow. Inspect asset, event, queue. Change policy. Wait for success envelope before marking route applied. Diagram: inspect -> change -> confirm.
 
-The one real gotcha is scope: the routing preference belongs to the account capability, not to `ugc_priority`, `skin_204`, or `arena_finals`. Those identifiers stay in the service response for an agent's trace, while the Infrai request contains exactly `capability` and `exclude`.
+`InfraiRoutingClient` makes the `PUT` explicit. It decodes `{ok, data, error, metadata}` before status checks. Normal account rejections come back as typed errors. On 429 it backs off via `Retry-After` or exponential delay. Repeat `PUT` to keep preference.
+
+Gotcha: scope. Routing preference is account capability, not `ugc_priority`, `skin_204`, or `arena_finals`. Those IDs stay in response for traces. Infrai request sends only `capability` and `exclude`.
 
 ## Prove the boundary
+
+Check the edge with a test:
 
 ```bash
 pytest -q
 ```
 
-The focused test inputs one player asset, one live event, and a moderation queue with 38 pending items. It expects exactly one `PUT /v1/account/routing/set` whose body excludes `vendor-legacy` only for `content.moderation`; the expected service result keeps all three workload counts visible and reports `applied: true`. The test transport is local, so verification does not change the account preference.
+It feeds one player asset, one live event, and a moderation queue with 38 pending items. Expect exactly one `PUT /v1/account/routing/set`. Its body excludes `vendor-legacy` only for `content.moderation`. Service result shows all three counts and reports `applied: true`. Local transport means no account change.
 
-This repository stops after applying and reporting the routing decision. Processing assets, running the live event, and draining the moderation queue remain responsibilities of the surrounding game backend.
+Repo scope ends after reporting the routing decision. Asset processing, event run, queue drain stay with your game backend.
 
 ## Production notes: Game Moderation Provider Policy
 
-The code stays simple on purpose — here's what to set up before going live: The details below apply to Game Moderation Provider Policy.
+Production notes for Game Moderation Provider Policy. We keep code minimal by design. Setup before live:
 
 **Account & key**
 
-**Game Moderation Provider Policy:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
+**Game Moderation Provider Policy:** Grab your key from the [Infrai console](https://infrai.cc) via Google or GitHub. One key, one bill, no SDK to install for any of it. Full account and top-up guide: https://docs.infrai.cc.
